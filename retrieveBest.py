@@ -25,29 +25,14 @@ class HybridSN(nn.Module):
         self.dense2 = nn.Linear(256, 128)
         self.dense3 = nn.Linear(128, class_num)
 
-        self.senet = FusionAttenion(channel=4, ratio=4)
+        self.senet = SeNet(channel=4, ratio=4)
         self.senet2 = SeNet(channel=204, ratio=1/rate)
-        self.spatial_attention1 = spacial_attention()
-        self.spatial_attention2 = spacial_attention()
-        self.spatial_attention3 = spacial_attention()
-        self.spatial_attention4 = spacial_attention()
+        self.spatial_attention = spacial_attention()
 
-        self.avg_pool2 = nn.AdaptiveAvgPool2d(1)
-        self.avg_pool3 = nn.AdaptiveAvgPool2d(1)
-        self.avg_pool4 = nn.AdaptiveAvgPool2d(1)
-
-        self.fc11 = nn.Linear(K, 1024)
-        self.fc21 = nn.Linear(1024, 2048)
-        self.fc31 = nn.Linear(2048, 4096)
-
-        self.fc12 = nn.Linear(K, 1024)
-        self.fc22 = nn.Linear(1024, 2048)
-        self.fc32 = nn.Linear(2048, 4096)
-
-        self.fc13 = nn.Linear(K, 1024)
-        self.fc23 = nn.Linear(1024, 2048)
-        self.fc33 = nn.Linear(2048, 4096)
-
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc1 = nn.Linear(K, 1024)
+        self.fc2 = nn.Linear(1024, 2048)
+        self.fc3 = nn.Linear(2048, 4096)
         pass
 
     def get2Dinput(self):
@@ -61,7 +46,7 @@ class HybridSN(nn.Module):
     def getCharacter(self, x):
         if True:
             x = x.view([x.shape[0], x.shape[2], x.shape[3], x.shape[4]])
-            x = self.spatial_attention1(x)
+            x = self.spatial_attention(x)
             x = self.senet2(x)
             x = x.view([x.shape[0], 1, x.shape[1], x.shape[2], x.shape[3]])
 
@@ -71,57 +56,38 @@ class HybridSN(nn.Module):
 
         out = out.view(-1, out.shape[1] * out.shape[2], out.shape[3], out.shape[4])
         out = F.relu(self.conv4(out))
+
+        if True:
+            weight = F.avg_pool2d(out, out.size(2))
+            weight = F.relu(self.sa1(weight))
+            weight = F.sigmoid(self.sa2(weight))
+            out = out * weight
         return out
     
-    def getCharacterSoilUp(self, x):
+    def getCharacterSoil(self, x):
         if True:
             x = x.view([x.shape[0], x.shape[2], x.shape[3], x.shape[4]])
-            x = self.spatial_attention2(x)
+            x = self.spatial_attention(x)
             x = x.view([x.shape[0], 1, x.shape[1], x.shape[2], x.shape[3]])
-        x = self.avg_pool2(x)
+        x = self.avg_pool(x)
         x = x.view([x.shape[0], -1])
-        x = F.relu(self.fc11(x))
-        x = F.relu(self.fc21(x))
-        x = F.relu(self.fc31(x))
-        return x
-    
-    def getCharacterSoilDown(self, x):
-        if True:
-            x = x.view([x.shape[0], x.shape[2], x.shape[3], x.shape[4]])
-            x = self.spatial_attention3(x)
-            x = x.view([x.shape[0], 1, x.shape[1], x.shape[2], x.shape[3]])
-        x = self.avg_pool3(x)
-        x = x.view([x.shape[0], -1])
-        x = F.relu(self.fc12(x))
-        x = F.relu(self.fc22(x))
-        x = F.relu(self.fc32(x))
-        return x
-    
-    def getCharacterStem(self, x):
-        if True:
-            x = x.view([x.shape[0], x.shape[2], x.shape[3], x.shape[4]])
-            x = self.spatial_attention4(x)
-            x = x.view([x.shape[0], 1, x.shape[1], x.shape[2], x.shape[3]])
-        x = self.avg_pool4(x)
-        x = x.view([x.shape[0], -1])
-        x = F.relu(self.fc13(x))
-        x = F.relu(self.fc23(x))
-        x = F.relu(self.fc33(x))
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
         return x
 
     def forward(self, x, img_soilUp, img_soilDwon, img_stem):
         out = self.getCharacter(x)
-        out_soilUp = self.getCharacterSoilUp(img_soilUp)
-        out_soilDown = self.getCharacterSoilDown(img_soilDwon)
-        out_stem = self.getCharacterStem(img_stem)
+        out_soilUp = self.getCharacterSoil(img_soilUp)
+        out_soilDown = self.getCharacterSoil(img_soilDwon)
+        out_stem = self.getCharacterSoil(img_stem)
 
-        out = out.view([out.size(0), 1, -1])
-        out_soilUp = out_soilUp.view([out_soilUp.size(0), 1, -1])
-        out_soilDown = out_soilDown.view([out_soilDown.size(0), 1, -1])
-        out_stem = out_stem.view([out_stem.size(0), 1, -1])
+        out = out.view([out.size(0), 1, -1, 1])
+        out_soilUp = out_soilUp.view([out_soilUp.size(0), 1, -1, 1])
+        out_soilDown = out_soilDown.view([out_soilDown.size(0), 1, -1, 1])
+        out_stem = out_stem.view([out_stem.size(0), 1, -1, 1])
 
         out = torch.cat([out, out_soilUp, out_soilDown, out_stem], 1)
-        
         if True:
             out = self.senet(out)
         out = out.view([out.size(0), -1])

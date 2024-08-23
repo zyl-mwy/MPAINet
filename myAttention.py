@@ -34,19 +34,20 @@ class spacial_attention(nn.Module):
 
         return out*x
     
-class FusionAttenion(nn.Module):
-    def __init__(self, channel, ratio=16):
-        super(FusionAttenion, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channel, int(channel*ratio), False),
-            nn.ReLU(),
-            nn.Linear(int(channel*ratio), channel, False),
-            nn.Sigmoid()
-        )
+
+class self_attetion(nn.Module):
+    def __init__(self, channel, ratio, size):
+        super(self_attetion, self).__init__()
+        self.avg_pool = nn.AvgPool2d(size)
+        self.sa1 = nn.Conv2d(channel, channel//ratio, kernel_size=1)
+        self.sa2 = nn.Conv2d(channel//ratio, channel, kernel_size=1)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        b, c, h = x.size()
-        avg = self.avg_pool(x).view([b, c])
-        fc = self.fc(avg).view([b, c, 1])
-        return x*fc
+        weight = self.avg_pool(x)
+        weight = self.relu(self.sa1(weight))
+        weight = self.sigmoid(self.sa2(weight))
+        out = x * weight
+        return out
+    
