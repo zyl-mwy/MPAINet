@@ -1,5 +1,5 @@
 # Model
-This is the model of MPAINet
+This is the model of AM-MHENet.
 
 # Data
 If the link doesn't work, please contact the author.
